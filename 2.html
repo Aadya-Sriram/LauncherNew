@@ -1,0 +1,1040 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document</title>
+
+</head>
+
+<body>
+  <div id="calendar"></div>
+  <script src="//cdnjs.cloudflare.com/ajax/libs/moment.js/2.5.1/moment.min.js"></script>
+  <script>
+    !function () {
+
+      var today = moment();
+
+      function Calendar(selector, events) {
+        this.el = document.querySelector(selector);
+        this.events = events;
+        this.current = moment().date(1);
+        this.draw();
+        var current = document.querySelector('.today');
+        if (current) {
+          var self = this;
+          window.setTimeout(function () {
+            self.openDay(current);
+          }, 500);
+        }
+      }
+
+      Calendar.prototype.draw = function () {
+        //Create Header
+        this.drawHeader();
+
+        //Draw Month
+        this.drawMonth();
+
+        this.drawLegend();
+      }
+
+      Calendar.prototype.drawHeader = function () {
+        var self = this;
+        if (!this.header) {
+          //Create the header elements
+          this.header = createElement('div', 'header');
+          this.header.className = 'header';
+
+          this.title = createElement('h1');
+
+          var right = createElement('div', 'right');
+          right.addEventListener('click', function () { self.nextMonth(); });
+
+          var left = createElement('div', 'left');
+          left.addEventListener('click', function () { self.prevMonth(); });
+
+          //Append the Elements
+          this.header.appendChild(this.title);
+          this.header.appendChild(right);
+          this.header.appendChild(left);
+          this.el.appendChild(this.header);
+        }
+
+        this.title.innerHTML = this.current.format('MMMM YYYY');
+      }
+
+      Calendar.prototype.drawMonth = function () {
+        var self = this;
+
+        this.events.forEach(function (ev) {
+          ev.date = self.current.clone().date(Math.random() * (29 - 1) + 1);
+        });
+
+
+        if (this.month) {
+          this.oldMonth = this.month;
+          this.oldMonth.className = 'month out ' + (self.next ? 'next' : 'prev');
+          this.oldMonth.addEventListener('webkitAnimationEnd', function () {
+            self.oldMonth.parentNode.removeChild(self.oldMonth);
+            self.month = createElement('div', 'month');
+            self.backFill();
+            self.currentMonth();
+            self.fowardFill();
+            self.el.appendChild(self.month);
+            window.setTimeout(function () {
+              self.month.className = 'month in ' + (self.next ? 'next' : 'prev');
+            }, 16);
+          });
+        } else {
+          this.month = createElement('div', 'month');
+          this.el.appendChild(this.month);
+          this.backFill();
+          this.currentMonth();
+          this.fowardFill();
+          this.month.className = 'month new';
+        }
+      }
+
+      Calendar.prototype.backFill = function () {
+        var clone = this.current.clone();
+        var dayOfWeek = clone.day();
+
+        if (!dayOfWeek) { return; }
+
+        clone.subtract('days', dayOfWeek + 1);
+
+        for (var i = dayOfWeek; i > 0; i--) {
+          this.drawDay(clone.add('days', 1));
+        }
+      }
+
+      Calendar.prototype.fowardFill = function () {
+        var clone = this.current.clone().add('months', 1).subtract('days', 1);
+        var dayOfWeek = clone.day();
+
+        if (dayOfWeek === 6) { return; }
+
+        for (var i = dayOfWeek; i < 6; i++) {
+          this.drawDay(clone.add('days', 1));
+        }
+      }
+
+      Calendar.prototype.currentMonth = function () {
+        var clone = this.current.clone();
+
+        while (clone.month() === this.current.month()) {
+          this.drawDay(clone);
+          clone.add('days', 1);
+        }
+      }
+
+      Calendar.prototype.getWeek = function (day) {
+        if (!this.week || day.day() === 0) {
+          this.week = createElement('div', 'week');
+          this.month.appendChild(this.week);
+        }
+      }
+
+      Calendar.prototype.drawDay = function (day) {
+        var self = this;
+        this.getWeek(day);
+
+        //Outer Day
+        var outer = createElement('div', this.getDayClass(day));
+        outer.addEventListener('click', function () {
+          self.openDay(this);
+        });
+
+        //Day Name
+        var name = createElement('div', 'day-name', day.format('ddd'));
+
+        //Day Number
+        var number = createElement('div', 'day-number', day.format('DD'));
+
+
+        //Events
+        var events = createElement('div', 'day-events');
+        this.drawEvents(day, events);
+
+        outer.appendChild(name);
+        outer.appendChild(number);
+        outer.appendChild(events);
+        this.week.appendChild(outer);
+      }
+
+      Calendar.prototype.drawEvents = function (day, element) {
+        if (day.month() === this.current.month()) {
+          var todaysEvents = this.events.reduce(function (memo, ev) {
+            if (ev.date.isSame(day, 'day')) {
+              memo.push(ev);
+            }
+            return memo;
+          }, []);
+
+          todaysEvents.forEach(function (ev) {
+            var evSpan = createElement('span', ev.color);
+            element.appendChild(evSpan);
+          });
+        }
+      }
+
+      Calendar.prototype.getDayClass = function (day) {
+        classes = ['day'];
+        if (day.month() !== this.current.month()) {
+          classes.push('other');
+        } else if (today.isSame(day, 'day')) {
+          classes.push('today');
+        }
+        return classes.join(' ');
+      }
+
+      Calendar.prototype.openDay = function (el) {
+        var details, arrow;
+        var dayNumber = +el.querySelectorAll('.day-number')[0].innerText || +el.querySelectorAll('.day-number')[0].textContent;
+        var day = this.current.clone().date(dayNumber);
+
+        var currentOpened = document.querySelector('.details');
+
+        //Check to see if there is an open detais box on the current row
+        if (currentOpened && currentOpened.parentNode === el.parentNode) {
+          details = currentOpened;
+          arrow = document.querySelector('.arrow');
+        } else {
+          //Close the open events on differnt week row
+          //currentOpened && currentOpened.parentNode.removeChild(currentOpened);
+          if (currentOpened) {
+            currentOpened.addEventListener('webkitAnimationEnd', function () {
+              currentOpened.parentNode.removeChild(currentOpened);
+            });
+            currentOpened.addEventListener('oanimationend', function () {
+              currentOpened.parentNode.removeChild(currentOpened);
+            });
+            currentOpened.addEventListener('msAnimationEnd', function () {
+              currentOpened.parentNode.removeChild(currentOpened);
+            });
+            currentOpened.addEventListener('animationend', function () {
+              currentOpened.parentNode.removeChild(currentOpened);
+            });
+            currentOpened.className = 'details out';
+          }
+
+          //Create the Details Container
+          details = createElement('div', 'details in');
+
+          //Create the arrow
+          var arrow = createElement('div', 'arrow');
+
+          //Create the event wrapper
+
+          details.appendChild(arrow);
+          el.parentNode.appendChild(details);
+        }
+
+        var todaysEvents = this.events.reduce(function (memo, ev) {
+          if (ev.date.isSame(day, 'day')) {
+            memo.push(ev);
+          }
+          return memo;
+        }, []);
+
+        this.renderEvents(todaysEvents, details);
+
+        arrow.style.left = el.offsetLeft - el.parentNode.offsetLeft + 27 + 'px';
+      }
+
+      Calendar.prototype.renderEvents = function (events, ele) {
+        //Remove any events in the current details element
+        var currentWrapper = ele.querySelector('.events');
+        var wrapper = createElement('div', 'events in' + (currentWrapper ? ' new' : ''));
+
+        events.forEach(function (ev) {
+          var div = createElement('div', 'event');
+          var square = createElement('div', 'event-category ' + ev.color);
+          var span = createElement('span', '', ev.eventName);
+
+          div.appendChild(square);
+          div.appendChild(span);
+          wrapper.appendChild(div);
+        });
+
+        if (!events.length) {
+          var div = createElement('div', 'event empty');
+          var span = createElement('span', '', 'No Events');
+
+          div.appendChild(span);
+          wrapper.appendChild(div);
+        }
+
+        if (currentWrapper) {
+          currentWrapper.className = 'events out';
+          currentWrapper.addEventListener('webkitAnimationEnd', function () {
+            currentWrapper.parentNode.removeChild(currentWrapper);
+            ele.appendChild(wrapper);
+          });
+          currentWrapper.addEventListener('oanimationend', function () {
+            currentWrapper.parentNode.removeChild(currentWrapper);
+            ele.appendChild(wrapper);
+          });
+          currentWrapper.addEventListener('msAnimationEnd', function () {
+            currentWrapper.parentNode.removeChild(currentWrapper);
+            ele.appendChild(wrapper);
+          });
+          currentWrapper.addEventListener('animationend', function () {
+            currentWrapper.parentNode.removeChild(currentWrapper);
+            ele.appendChild(wrapper);
+          });
+        } else {
+          ele.appendChild(wrapper);
+        }
+      }
+
+      Calendar.prototype.drawLegend = function () {
+        var legend = createElement('div', 'legend');
+        var calendars = this.events.map(function (e) {
+          return e.calendar + '|' + e.color;
+        }).reduce(function (memo, e) {
+          if (memo.indexOf(e) === -1) {
+            memo.push(e);
+          }
+          return memo;
+        }, []).forEach(function (e) {
+          var parts = e.split('|');
+          var entry = createElement('span', 'entry ' + parts[1], parts[0]);
+          legend.appendChild(entry);
+        });
+        this.el.appendChild(legend);
+      }
+
+      Calendar.prototype.nextMonth = function () {
+        this.current.add('months', 1);
+        this.next = true;
+        this.draw();
+      }
+
+      Calendar.prototype.prevMonth = function () {
+        this.current.subtract('months', 1);
+        this.next = false;
+        this.draw();
+      }
+
+      window.Calendar = Calendar;
+
+      function createElement(tagName, className, innerText) {
+        var ele = document.createElement(tagName);
+        if (className) {
+          ele.className = className;
+        }
+        if (innerText) {
+          ele.innderText = ele.textContent = innerText;
+        }
+        return ele;
+      }
+    }();
+
+    !function () {
+      var data = [
+
+      ];
+
+
+
+      function addDate(ev) {
+
+      }
+
+      var calendar = new Calendar('#calendar', data);
+
+    }();
+
+  </script>
+  <style>
+    *{
+      -webkit-tap-highlight-color: transparent;
+    }
+    *,
+    *:before,
+    *:after {
+      -moz-box-sizing: border-box;
+      -webkit-box-sizing: border-box;
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      overflow: hidden;
+      font-family: 'HelveticaNeue-UltraLight', 'Helvetica Neue UltraLight', 'Helvetica Neue', Arial, Helvetica, sans-serif;
+      font-weight: 100;
+      color: rgba(255, 255, 255, 1);
+      margin: 0;
+      padding: 0;
+      background: #4A4A4A;
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      -khtml-user-select: none;
+      -moz-user-select: none;
+      -ms-user-select: none;
+      user-select: none;
+    }
+
+    #calendar {
+      -webkit-transform: translate3d(0, 0, 0);
+      -moz-transform: translate3d(0, 0, 0);
+      transform: translate3d(0, 0, 0);
+      width: 420px;
+      margin: 0 auto;
+      height: 570px;
+      overflow: hidden;
+    }
+
+    .header {
+      height: 50px;
+      width: 420px;
+      background: rgba(66, 66, 66, 1);
+      text-align: center;
+      position: relative;
+      z-index: 100;
+    }
+
+    .header h1 {
+      margin: 0;
+      padding: 0;
+      font-size: 20px;
+      line-height: 50px;
+      font-weight: 100;
+      letter-spacing: 1px;
+    }
+
+    .left,
+    .right {
+      position: absolute;
+      width: 0px;
+      height: 0px;
+      border-style: solid;
+      top: 50%;
+      margin-top: -7.5px;
+      cursor: pointer;
+    }
+
+    .left {
+      border-width: 7.5px 10px 7.5px 0;
+      border-color: transparent rgba(160, 159, 160, 1) transparent transparent;
+      left: 20px;
+    }
+
+    .right {
+      border-width: 7.5px 0 7.5px 10px;
+      border-color: transparent transparent transparent rgba(160, 159, 160, 1);
+      right: 20px;
+    }
+
+    .month {
+      /*overflow: hidden;*/
+      opacity: 0;
+    }
+
+    .month.new {
+      -webkit-animation: fadeIn 1s ease-out;
+      opacity: 1;
+    }
+
+    .month.in.next {
+      -webkit-animation: moveFromTopFadeMonth .4s ease-out;
+      -moz-animation: moveFromTopFadeMonth .4s ease-out;
+      animation: moveFromTopFadeMonth .4s ease-out;
+      opacity: 1;
+    }
+
+    .month.out.next {
+      -webkit-animation: moveToTopFadeMonth .4s ease-in;
+      -moz-animation: moveToTopFadeMonth .4s ease-in;
+      animation: moveToTopFadeMonth .4s ease-in;
+      opacity: 1;
+    }
+
+    .month.in.prev {
+      -webkit-animation: moveFromBottomFadeMonth .4s ease-out;
+      -moz-animation: moveFromBottomFadeMonth .4s ease-out;
+      animation: moveFromBottomFadeMonth .4s ease-out;
+      opacity: 1;
+    }
+
+    .month.out.prev {
+      -webkit-animation: moveToBottomFadeMonth .4s ease-in;
+      -moz-animation: moveToBottomFadeMonth .4s ease-in;
+      animation: moveToBottomFadeMonth .4s ease-in;
+      opacity: 1;
+    }
+
+    .week {
+      background: #4A4A4A;
+    }
+
+    .day {
+      display: inline-block;
+      width: 60px;
+      padding: 10px;
+      text-align: center;
+      vertical-align: top;
+      cursor: pointer;
+      background: #4A4A4A;
+      position: relative;
+      z-index: 100;
+    }
+
+    .day.other {
+      color: rgba(255, 255, 255, .3);
+    }
+
+    .day.today {
+      color: rgba(156, 202, 235, 1);
+    }
+
+    .day-name {
+      font-size: 9px;
+      text-transform: uppercase;
+      margin-bottom: 5px;
+      color: rgba(255, 255, 255, .5);
+      letter-spacing: .7px;
+    }
+
+    .day-number {
+      font-size: 24px;
+      letter-spacing: 1.5px;
+    }
+
+
+    .day .day-events {
+      list-style: none;
+      margin-top: 3px;
+      text-align: center;
+      height: 12px;
+      line-height: 6px;
+      overflow: hidden;
+    }
+
+    .day .day-events span {
+      vertical-align: top;
+      display: inline-block;
+      padding: 0;
+      margin: 0;
+      width: 5px;
+      height: 5px;
+      line-height: 5px;
+      margin: 0 1px;
+    }
+
+    .blue {
+      background: rgba(156, 202, 235, 1);
+    }
+
+    .orange {
+      background: rgba(247, 167, 0, 1);
+    }
+
+    .green {
+      background: rgba(153, 198, 109, 1);
+    }
+
+    .yellow {
+      background: rgba(249, 233, 0, 1);
+    }
+
+    .details {
+      position: relative;
+      width: 420px;
+      height: 75px;
+      background: rgba(164, 164, 164, 1);
+      margin-top: 5px;
+      border-radius: 4px;
+    }
+
+    .details.in {
+      -webkit-animation: moveFromTopFade .5s ease both;
+      -moz-animation: moveFromTopFade .5s ease both;
+      animation: moveFromTopFade .5s ease both;
+    }
+
+    .details.out {
+      -webkit-animation: moveToTopFade .5s ease both;
+      -moz-animation: moveToTopFade .5s ease both;
+      animation: moveToTopFade .5s ease both;
+    }
+
+    .arrow {
+      position: absolute;
+      top: -5px;
+      left: 50%;
+      margin-left: -2px;
+      width: 0px;
+      height: 0px;
+      border-style: solid;
+      border-width: 0 5px 5px 5px;
+      border-color: transparent transparent rgba(164, 164, 164, 1) transparent;
+      transition: all 0.7s ease;
+    }
+
+    .events {
+      height: 75px;
+      padding: 7px 0;
+      overflow-y: auto;
+      overflow-x: hidden;
+    }
+
+    .events.in {
+      -webkit-animation: fadeIn .3s ease both;
+      -moz-animation: fadeIn .3s ease both;
+      animation: fadeIn .3s ease both;
+    }
+
+    .events.in {
+      -webkit-animation-delay: .3s;
+      -moz-animation-delay: .3s;
+      animation-delay: .3s;
+    }
+
+    .details.out .events {
+      -webkit-animation: fadeOutShrink .4s ease both;
+      -moz-animation: fadeOutShink .4s ease both;
+      animation: fadeOutShink .4s ease both;
+    }
+
+    .events.out {
+      -webkit-animation: fadeOut .3s ease both;
+      -moz-animation: fadeOut .3s ease both;
+      animation: fadeOut .3s ease both;
+    }
+
+    .event {
+      font-size: 16px;
+      line-height: 22px;
+      letter-spacing: .5px;
+      padding: 2px 16px;
+      vertical-align: top;
+    }
+
+    .event.empty {
+      color: #eee;
+    }
+
+    .event-category {
+      height: 10px;
+      width: 10px;
+      display: inline-block;
+      margin: 6px 0 0;
+      vertical-align: top;
+    }
+
+    .event span {
+      display: inline-block;
+      padding: 0 0 0 7px;
+    }
+
+    .legend {
+      position: absolute;
+      bottom: 0;
+      width: 100%;
+      height: 30px;
+      background: rgba(60, 60, 60, 1);
+      line-height: 30px;
+
+    }
+
+    .entry {
+      position: relative;
+      padding: 0 0 0 25px;
+      font-size: 13px;
+      display: inline-block;
+      line-height: 30px;
+      background: transparent;
+    }
+
+    .entry:after {
+      position: absolute;
+      content: '';
+      height: 5px;
+      width: 5px;
+      top: 12px;
+      left: 14px;
+    }
+
+    .entry.blue:after {
+      background: rgba(156, 202, 235, 1);
+    }
+
+    .entry.orange:after {
+      background: rgba(247, 167, 0, 1);
+    }
+
+    .entry.green:after {
+      background: rgba(153, 198, 109, 1);
+    }
+
+    .entry.yellow:after {
+      background: rgba(249, 233, 0, 1);
+    }
+
+    /* Animations are cool!  */
+    @-webkit-keyframes moveFromTopFade {
+      from {
+        opacity: .3;
+        height: 0px;
+        margin-top: 0px;
+        -webkit-transform: translateY(-100%);
+      }
+    }
+
+    @-moz-keyframes moveFromTopFade {
+      from {
+        height: 0px;
+        margin-top: 0px;
+        -moz-transform: translateY(-100%);
+      }
+    }
+
+    @keyframes moveFromTopFade {
+      from {
+        height: 0px;
+        margin-top: 0px;
+        transform: translateY(-100%);
+      }
+    }
+
+    @-webkit-keyframes moveToTopFade {
+      to {
+        opacity: .3;
+        height: 0px;
+        margin-top: 0px;
+        opacity: 0.3;
+        -webkit-transform: translateY(-100%);
+      }
+    }
+
+    @-moz-keyframes moveToTopFade {
+      to {
+        height: 0px;
+        -moz-transform: translateY(-100%);
+      }
+    }
+
+    @keyframes moveToTopFade {
+      to {
+        height: 0px;
+        transform: translateY(-100%);
+      }
+    }
+
+    @-webkit-keyframes moveToTopFadeMonth {
+      to {
+        opacity: 0;
+        -webkit-transform: translateY(-30%) scale(.95);
+      }
+    }
+
+    @-moz-keyframes moveToTopFadeMonth {
+      to {
+        opacity: 0;
+        -moz-transform: translateY(-30%);
+      }
+    }
+
+    @keyframes moveToTopFadeMonth {
+      to {
+        opacity: 0;
+        -moz-transform: translateY(-30%);
+      }
+    }
+
+    @-webkit-keyframes moveFromTopFadeMonth {
+      from {
+        opacity: 0;
+        -webkit-transform: translateY(30%) scale(.95);
+      }
+    }
+
+    @-moz-keyframes moveFromTopFadeMonth {
+      from {
+        opacity: 0;
+        -moz-transform: translateY(30%);
+      }
+    }
+
+    @keyframes moveFromTopFadeMonth {
+      from {
+        opacity: 0;
+        -moz-transform: translateY(30%);
+      }
+    }
+
+    @-webkit-keyframes moveToBottomFadeMonth {
+      to {
+        opacity: 0;
+        -webkit-transform: translateY(30%) scale(.95);
+      }
+    }
+
+    @-moz-keyframes moveToBottomFadeMonth {
+      to {
+        opacity: 0;
+        -webkit-transform: translateY(30%);
+      }
+    }
+
+    @keyframes moveToBottomFadeMonth {
+      to {
+        opacity: 0;
+        -webkit-transform: translateY(30%);
+      }
+    }
+
+    @-webkit-keyframes moveFromBottomFadeMonth {
+      from {
+        opacity: 0;
+        -webkit-transform: translateY(-30%) scale(.95);
+      }
+    }
+
+    @-moz-keyframes moveFromBottomFadeMonth {
+      from {
+        opacity: 0;
+        -webkit-transform: translateY(-30%);
+      }
+    }
+
+    @keyframes moveFromBottomFadeMonth {
+      from {
+        opacity: 0;
+        -webkit-transform: translateY(-30%);
+      }
+    }
+
+    @-webkit-keyframes fadeIn {
+      from {
+        opacity: 0;
+      }
+    }
+
+    @-moz-keyframes fadeIn {
+      from {
+        opacity: 0;
+      }
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+      }
+    }
+
+    @-webkit-keyframes fadeOut {
+      to {
+        opacity: 0;
+      }
+    }
+
+    @-moz-keyframes fadeOut {
+      to {
+        opacity: 0;
+      }
+    }
+
+    @keyframes fadeOut {
+      to {
+        opacity: 0;
+      }
+    }
+
+    @-webkit-keyframes fadeOutShink {
+      to {
+        opacity: 0;
+        padding: 0px;
+        height: 0px;
+      }
+    }
+
+    @-moz-keyframes fadeOutShink {
+      to {
+        opacity: 0;
+        padding: 0px;
+        height: 0px;
+      }
+    }
+
+    @keyframes fadeOutShink {
+      to {
+        opacity: 0;
+        padding: 0px;
+        height: 0px;
+      }
+    }
+  </style>
+  <nav style="margin-top:24%" class="navbar-container">
+    <ul class="list">
+      <div style="--position: 0;" data-indicator class="indicator">
+        <div class="corners"></div>
+      </div>
+      <li><a href="#" class="active" onclick="redilectapps()">
+          <div class="icon">
+            <img style="padding-bottom: 2px;" width="30px" src="./newspaper-folded.png" alt="">
+            </svg>
+          </div>
+          <div class="text"></div>
+        </a></li>
+
+
+      <li><a href="#" onclick="redirectapps()">
+          <div class="icon">
+            <img width="30px" src="./option.png" alt="">
+          </div>
+          <div class="text">All apps</div>
+        </a></li>
+
+
+      <li><a href="#" onclick="redirectappsredirectapps()">
+          <div class="icon">
+            <img width="30px" src="./calendar.png" alt="">
+          </div>
+          <div class="text"></div>
+        </a></li>
+
+
+      <li><a href="#" onclick=" redirectappsredirectappsredirectapps()">
+          <div class="icon">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+              <path d="M0 0h24v24H0V0z" fill="none" />
+              <path
+                d="M14.12 4l1.83 2H20v12H4V6h4.05l1.83-2h4.24M15 2H9L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2zm-3 7c1.65 0 3 1.35 3 3s-1.35 3-3 3-3-1.35-3-3 1.35-3 3-3m0-2c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5z" />
+            </svg>
+          </div>
+          <div class="text"></div>
+        </a></li>
+
+
+      <li><a href="#" onclick=" redirectappsredirectappsredirectappsredirectapps()">
+          <div class="icon">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+              <path d="M0 0h24v24H0V0z" fill="none" />
+              <path
+                d="M19.43 12.98c.04-.32.07-.64.07-.98 0-.34-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.09-.16-.26-.25-.44-.25-.06 0-.12.01-.17.03l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69.98l-2.49-1c-.06-.02-.12-.03-.18-.03-.17 0-.34.09-.43.25l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98 0 .33.03.66.07.98l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46c.09.16.26.25.44.25.06 0 .12-.01.17-.03l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.06.02.12.03.18.03.17 0 .34-.09.43-.25l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65zm-1.98-1.71c.04.31.05.52.05.73 0 .21-.02.43-.05.73l-.14 1.13.89.7 1.08.84-.7 1.21-1.27-.51-1.04-.42-.9.68c-.43.32-.84.56-1.25.73l-1.06.43-.16 1.13-.2 1.35h-1.4l-.19-1.35-.16-1.13-1.06-.43c-.43-.18-.83-.41-1.23-.71l-.91-.7-1.06.43-1.27.51-.7-1.21 1.08-.84.89-.7-.14-1.13c-.03-.31-.05-.54-.05-.74s.02-.43.05-.73l.14-1.13-.89-.7-1.08-.84.7-1.21 1.27.51 1.04.42.9-.68c.43-.32.84-.56 1.25-.73l1.06-.43.16-1.13.2-1.35h1.39l.19 1.35.16 1.13 1.06.43c.43.18.83.41 1.23.71l.91.7 1.06-.43 1.27-.51.7 1.21-1.07.85-.89.7.14 1.13zM12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm0 6c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z" />
+            </svg>
+          </div>
+          <div class="text"></div>
+        </a></li>
+    </ul>
+  </nav>
+  <script>
+    function redirectapps() {
+      setTimeout(() => {
+        window.location.href = '1.html'
+      }, 500);
+    }
+    function redirectappsredirectapps() {
+      setTimeout(() => {
+        window.location.href = '2.html'
+      }, 500);
+    }
+    function redirectappsredirectappsredirectapps() {
+      setTimeout(() => {
+        window.location.href = '3.html'
+      }, 500);
+    }
+    function redirectappsredirectappsredirectappsredirectapps() {
+      setTimeout(() => {
+        window.location.href = '4.html'
+      }, 500);
+    }
+    function redilectapps() {
+      setTimeout(() => {
+        window.location.href = 'index.html'
+      }, 500);
+    }
+
+  </script>
+  <style>
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      font-family: Arial, Helvetica, sans-serif;
+    }
+
+    body {
+      background-color: var(--background-color);
+      color: white;
+    }
+
+    :root {
+      --icon-size: 2rem;
+      --indicator-spacing: calc(var(--icon-size) / 8);
+      --border-radius: calc(var(--icon-size) / 4);
+      --nav-item-padding: calc(var(--icon-size) / 2);
+      --background-color: #333;
+    }
+
+    .navbar-container {
+      -webkit-tap-highlight-color: transparent;
+      background-color: white;
+      border-radius: var(--border-radius);
+      width: max-content;
+      margin: 0 auto;
+      margin-top: 10rem;
+      padding: 0 calc(var(--nav-item-padding) * 2);
+    }
+
+    .list {
+      display: flex;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .list a {
+      color: #333;
+      text-decoration: none;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: var(--nav-item-padding);
+    }
+
+    .list .text {
+      font-size: .8em;
+      opacity: 0;
+      pointer-events: none;
+      transition: 250ms ease-in-out;
+      position: absolute;
+      bottom: calc(.5 * var(--nav-item-padding));
+      transform: translateY(50%);
+    }
+
+    .list .icon {
+      position: relative;
+      transition: 250ms ease-in-out;
+    }
+
+    .list .icon svg {
+      fill: currentColor;
+      width: var(--icon-size);
+      height: var(--icon-size);
+      display: block;
+    }
+
+    .list .active .text {
+      pointer-events: all;
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+
+
+
+
+    .list {
+      position: relative;
+    }
+  </style>
+</body>
+
+</html>

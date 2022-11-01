@@ -1,0 +1,82 @@
+*, *::before, *::after {
+  box-sizing: border-box;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+body {
+  background-color: var(--background-color);
+  color: white;
+}
+
+:root {
+  --icon-size: 2rem;
+  --indicator-spacing: calc(var(--icon-size) / 8);
+  --border-radius: calc(var(--icon-size) / 4);
+  --nav-item-padding: calc(var(--icon-size) / 2);
+  --background-color: #333;
+}
+
+.navbar-container {
+  -webkit-tap-highlight-color: transparent;
+  background-color: white;
+  border-radius: var(--border-radius);
+  width: max-content;
+  margin: 0 auto;
+  margin-top: 10rem;
+  padding: 0 calc(var(--nav-item-padding) * 2);
+}
+
+.list {
+  display: flex;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.list a {
+  color: #333;
+  text-decoration: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--nav-item-padding);
+}
+
+.list .text {
+  font-size: .8em;
+  opacity: 0;
+  pointer-events: none;
+  transition: 250ms ease-in-out;
+  position: absolute;
+  bottom: calc(.5 * var(--nav-item-padding));
+  transform: translateY(50%);
+}
+
+.list .icon {
+  position: relative;
+  transition: 250ms ease-in-out;
+}
+
+.list .icon svg {
+  fill: currentColor;
+  width: var(--icon-size);
+  height: var(--icon-size);
+  display: block;
+}
+
+.list .active .text {
+  pointer-events: all;
+  opacity: 1;
+  transform: translateY(0);
+}
+
+
+
+
+
+.list {
+  position: relative;
+}
+
+
+
